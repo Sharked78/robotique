@@ -1,5 +1,6 @@
 #include "Aria.h"
-#include "iostream"
+#include <iostream>
+#include <fstream>
 
 void robotAlign(ArRobot &robot, ArPose &dest)
 {
@@ -29,7 +30,7 @@ void displayLaserInfo(ArRobot &robot, const ArRobotParams *params)
   ArUtil::sleep(1000);
 }
 
-void displayLaserStat(ArRobot &robot, const ArRobotParams *params)
+void laserScan(ArRobot &robot, const ArRobotParams *params)
 {
   ArPose *dest;
   int numLasers = 0;
@@ -37,6 +38,9 @@ void displayLaserStat(ArRobot &robot, const ArRobotParams *params)
   std::map<int, ArLaser*> *lasers = robot.getLaserMap();
   ArLog::log(ArLog::Normal, "Carto project: %d ArLaser.", lasers->size());
   auto robotPose = robot.getPose();
+
+  std::ofstream myFile;
+  myFile.open("test.txt");
 
   for (std::map<int, ArLaser*>::const_iterator i = lasers->begin();
       i != lasers->end(); ++i)
@@ -63,14 +67,21 @@ void displayLaserStat(ArRobot &robot, const ArRobotParams *params)
           pose->getTh(),
           pose->findDistanceTo(robotPose) / 1000,
           pose->findAngleTo(robotPose));*/
+	  std::cout << "coucou" << std::endl;
+	  myFile << pose->getX() / 1000 << std::endl;
+	  std::cout << "coco" << std::endl;
+	  myFile << pose->getY() / 1000 << std::endl;
+	  std::cout << "caca" << std::endl;
+
         ArLog::log(ArLog::Normal,
           "%2.4f,",
-          pose->getY() / 1000);
+          pose->getX() / 1000);
       }
       dest = currentReadings->back();
       laser->unlockDevice();
     }
   }
+  myFile.close();
   robot.unlock();
   ArLog::log(ArLog::Normal, "Carto project: Stat Laser END.");
   ArUtil::sleep(1000);
@@ -138,8 +149,8 @@ int main(int argc, char **argv)
   ArLog::log(ArLog::Terse, "Carto project: Connected to lasers.");
   ArLog::log(ArLog::Normal, "Carto project: connected to %d lasers", robot.getNumLasers());
   const ArRobotParams *params = robot.getRobotParams();
-  displayLaserInfo(robot, params);
-  displayLaserStat(robot, params);
+  // displayLaserInfo(robot, params);
+  laserScan(robot, params);
 
   robot.lock();
   ArLog::log(ArLog::Normal,
@@ -160,7 +171,7 @@ int main(int argc, char **argv)
   robot.setVel(250);
   robot.unlock();
   ArUtil::sleep(5000);
-  //displayLaserStat(robot, params);
+  //laserScan(robot, params);
 
   ArLog::log(ArLog::Normal, "simpleMotionCommands: Stopping.");
   robot.lock();

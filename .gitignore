@@ -5,3 +5,5 @@ a.out
 *.tar
 *.gz
 *.tgz
+.ipynb*
+*.txt
