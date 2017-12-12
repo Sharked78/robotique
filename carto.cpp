@@ -1,6 +1,9 @@
 #include "Aria.h"
 #include <iostream>
 #include <fstream>
+#include <math.h>
+
+#define PI 3.14159265
 
 void robotAlign(ArRobot &robot, ArPose &dest)
 {
@@ -41,51 +44,79 @@ void laserScan(ArRobot &robot, const ArRobotParams *params)
 
   std::ofstream myFile;
   myFile.open("test.txt");
+  ArPoseWithTime* nextPose;
+  double bestDistance = 0;
 
-  for (std::map<int, ArLaser*>::const_iterator i = lasers->begin();
-      i != lasers->end(); ++i)
-  {
-    int laserIndex = i->first;
-    ArLaser *laser = i->second;
-    if (laser)
-    {
-      ++numLasers;
-      laser->lockDevice();
+  for (int i = 0; i < 2; i++) {
+    robotPose = robot.getPose();
+    for (std::map<int, ArLaser *>::const_iterator i = lasers->begin();
+         i != lasers->end(); ++i) {
+      int laserIndex = i->first;
+      ArLaser *laser = i->second;
+      if (laser) {
+        ++numLasers;
+        laser->lockDevice();
 
-      std::list<ArPoseWithTime*> *currentReadings = laser->getCurrentBuffer();
-      ArLog::log(ArLog::Normal, "Carto project: %d readings.",
-        currentReadings->size());
-      
-      ArLog::log(ArLog::Normal, "Carto project: robot X: %2.4f Y:%2.4f th:%3.0f",
-        robotPose.getX() / 1000, robotPose.getY() / 1000, robotPose.getTh());
-      for(auto pose : *currentReadings)
-      {
-/*        ArLog::log(ArLog::Normal,
-          "Carto project: X: %2.4f Y:%2.4f th:%3.0f, dist:%2.4f, angle: %3.0f",
-          pose->getX() / 1000,
-          pose->getY() / 1000,
-          pose->getTh(),
-          pose->findDistanceTo(robotPose) / 1000,
-          pose->findAngleTo(robotPose));*/
-	  std::cout << "coucou" << std::endl;
-	  myFile << pose->getX() / 1000 << std::endl;
-	  std::cout << "coco" << std::endl;
-	  myFile << pose->getY() / 1000 << std::endl;
-	  std::cout << "caca" << std::endl;
+        std::list < ArPoseWithTime * > *currentReadings = laser->getCurrentBuffer();
+        ArLog::log(ArLog::Normal, "Carto project: %d readings.",
+                   currentReadings->size());
 
-        ArLog::log(ArLog::Normal,
-          "%2.4f,",
-          pose->getX() / 1000);
+        ArLog::log(ArLog::Normal, "Carto project: robot X: %2.4f Y:%2.4f th:%3.0f",
+                   robotPose.getX() / 1000, robotPose.getY() / 1000, robotPose.getTh());
+        for (auto pose : *currentReadings) {
+          /*
+              ArLog::log(ArLog::Normal,
+            "Carto project: X: %2.4f Y:%2.4f th:%3.0f, dist:%2.4f, angle: %3.0f",
+            pose->getX() / 1000,
+            pose->getY() / 1000,
+            pose->getTh(),
+            pose->findDistanceTo(robotPose) / 1000,
+            pose->findAngleTo(robotPose)); */
+          double distance = pose->findDistanceTo(robotPose) / 1000;
+          if (distance > bestDistance) {
+            robot.lock();
+            ArLog::log(ArLog::Normal, "Carto project: X: %2.4f Y:%2.4f distance:%2.4f",
+                       pose->getX() / 1000, pose->getY() / 1000, pose->findDistanceTo(robotPose) / 1000);
+            bestDistance = distance;
+            nextPose = pose;
+            robot.unlock();
+          }
+          myFile << pose->getX() / 1000 << std::endl;
+          myFile << pose->getY() / 1000 << std::endl;
+        }
+        laser->unlockDevice();
       }
-      dest = currentReadings->back();
-      laser->unlockDevice();
     }
+    if (i == 1) break;
+    // ArPose back(-robotPose.getX(), -robotPose.getY());
+    ArLog::log(ArLog::Normal, "COCOCO %3.0f", robot.getPose().getTh());
+    robot.lock();
+    robot.setHeading(robot.getPose().getTh() - 90);
+    robot.unlock();
+    ArLog::log(ArLog::Normal, "COCOCO %3.0f", robot.getPose().getTh());
   }
   myFile.close();
   robot.unlock();
   ArLog::log(ArLog::Normal, "Carto project: Stat Laser END.");
   ArUtil::sleep(1000);
-  robotAlign(robot, *dest);
+  /*
+  double cs = cos(90 * PI / 180.0);
+  double sn = sin(-90 * PI / 180.0);
+  double x = nextPose->getX();
+  double y = nextPose->getY();
+  ArLog::log(ArLog::Normal,
+             "Next pose: %2.4f, %2.4f, %3.0f",
+             nextPose->getX() / 1000, nextPose->getY() / 1000, nextPose->getTh());
+  ArPose rotatedPose(x * cs - y * sn , x * sn + y * cs);
+  std::cout << "COUCOU " << cs << " " << sn << std::endl;
+  dest = &rotatedPose;
+  ArLog::log(ArLog::Normal,
+             "Next pose: %2.4f, %2.4f, %3.0f",
+             rotatedPose.getX() / 1000, rotatedPose.getY() / 1000, rotatedPose.getTh());
+  ArLog::log(ArLog::Normal, "Carto project: Aligning with best distance for next scan.");
+  robotAlign(robot, rotatedPose);
+  ArLog::log(ArLog::Normal, "Carto project: Aligning with best distance for next scan END.");
+  */
 }
 
 int main(int argc, char **argv)
@@ -106,9 +137,9 @@ int main(int argc, char **argv)
     ArLog::log(ArLog::Terse, "simpleMotionCommands: Could not connect to the robot.");
     if(parser.checkHelpAndWarnUnparsed())
     {
-        Aria::logOptions();
-        Aria::exit(1);
-        return 1;
+      Aria::logOptions();
+      Aria::exit(1);
+      return 1;
     }
   }
   if (!Aria::parseArgs())
@@ -117,7 +148,7 @@ int main(int argc, char **argv)
     Aria::exit(1);
     return 1;
   }
-  
+
   ArLog::log(ArLog::Normal, "Carto project: Connected to robot.");
 
   // Start the robot processing cycle running in the background.
@@ -135,7 +166,7 @@ int main(int argc, char **argv)
   // take some time; if the robot remains locked during that time, then
   // ArRobot's background thread will be blocked and unable to communicate with
   // the robot, call tasks, etc.
-  
+
   /*
    * Connect to laser and error handling
    */
@@ -149,17 +180,18 @@ int main(int argc, char **argv)
   ArLog::log(ArLog::Terse, "Carto project: Connected to lasers.");
   ArLog::log(ArLog::Normal, "Carto project: connected to %d lasers", robot.getNumLasers());
   const ArRobotParams *params = robot.getRobotParams();
-  // displayLaserInfo(robot, params);
+  displayLaserInfo(robot, params);
   laserScan(robot, params);
 
   robot.lock();
   ArLog::log(ArLog::Normal,
-    "simpleMotionCommands: Pose=(%.2f,%.2f,%.2f), Trans. Vel=%.2f, Rot. Vel=%.2f, Battery=%.2fV",
-    robot.getX(), robot.getY(),
-    robot.getTh(), robot.getVel(),
-    robot.getRotVel(), robot.getBatteryVoltage());
+             "simpleMotionCommands: Pose=(%.2f,%.2f,%.2f), Trans. Vel=%.2f, Rot. Vel=%.2f, Battery=%.2fV",
+             robot.getX(), robot.getY(),
+             robot.getTh(), robot.getVel(),
+             robot.getRotVel(), robot.getBatteryVoltage());
   robot.unlock();
 
+  /*
   // Sleep for 3 seconds.
   ArLog::log(ArLog::Normal, "simpleMotionCommands: Will start driving in 3 seconds...");
   ArUtil::sleep(3000);
@@ -172,6 +204,7 @@ int main(int argc, char **argv)
   robot.unlock();
   ArUtil::sleep(5000);
   //laserScan(robot, params);
+  */
 
   ArLog::log(ArLog::Normal, "simpleMotionCommands: Stopping.");
   robot.lock();
@@ -191,6 +224,7 @@ int main(int argc, char **argv)
   robot.unlock();
   ArUtil::sleep(10000);
 */
+  /*
   ArLog::log(ArLog::Normal, "simpleMotionCommands: Driving forward at 150 mm/s for 5 sec...");
   robot.lock();
   robot.setRotVel(0);
@@ -203,8 +237,8 @@ int main(int argc, char **argv)
   robot.stop();
   robot.unlock();
   ArUtil::sleep(1000);
-
   //displayLaserInfo(robot, params);
+   */
 
 
   // Other motion command functions include move(), setHeading(),
@@ -212,13 +246,13 @@ int main(int argc, char **argv)
   // values used by the robot with setAccel(), setDecel(), setRotAccel(),
   // setRotDecel().  See the ArRobot class documentation for more.
 
-  
+
   robot.lock();
   ArLog::log(ArLog::Normal, "simpleMotionCommands: Pose=(%.2f,%.2f,%.2f), Trans. Vel=%.2f, Rot. Vel=%.2f, Battery=%.2fV",
-    robot.getX(), robot.getY(), robot.getTh(), robot.getVel(), robot.getRotVel(), robot.getBatteryVoltage());
+             robot.getX(), robot.getY(), robot.getTh(), robot.getVel(), robot.getRotVel(), robot.getBatteryVoltage());
   robot.unlock();
 
-  
+
   ArLog::log(ArLog::Normal, "simpleMotionCommands: Ending robot thread...");
   robot.stopRunning();
 
