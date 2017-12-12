@@ -43,7 +43,7 @@ void laserScan(ArRobot &robot, const ArRobotParams *params)
   auto robotPose = robot.getPose();
 
   std::ofstream myFile;
-  myFile.open("test.txt");
+  myFile.open("test.txt", std::ios::app);
   ArPoseWithTime* nextPose;
   double bestDistance = 0;
 
@@ -89,34 +89,16 @@ void laserScan(ArRobot &robot, const ArRobotParams *params)
     }
     if (i == 1) break;
     // ArPose back(-robotPose.getX(), -robotPose.getY());
-    ArLog::log(ArLog::Normal, "COCOCO %3.0f", robot.getPose().getTh());
+    /*ArLog::log(ArLog::Normal, "COCOCO %3.0f", robot.getPose().getTh());
     robot.lock();
     robot.setHeading(robot.getPose().getTh() - 90);
     robot.unlock();
-    ArLog::log(ArLog::Normal, "COCOCO %3.0f", robot.getPose().getTh());
+    ArLog::log(ArLog::Normal, "COCOCO %3.0f", robot.getPose().getTh());*/
   }
   myFile.close();
   robot.unlock();
   ArLog::log(ArLog::Normal, "Carto project: Stat Laser END.");
   ArUtil::sleep(1000);
-  /*
-  double cs = cos(90 * PI / 180.0);
-  double sn = sin(-90 * PI / 180.0);
-  double x = nextPose->getX();
-  double y = nextPose->getY();
-  ArLog::log(ArLog::Normal,
-             "Next pose: %2.4f, %2.4f, %3.0f",
-             nextPose->getX() / 1000, nextPose->getY() / 1000, nextPose->getTh());
-  ArPose rotatedPose(x * cs - y * sn , x * sn + y * cs);
-  std::cout << "COUCOU " << cs << " " << sn << std::endl;
-  dest = &rotatedPose;
-  ArLog::log(ArLog::Normal,
-             "Next pose: %2.4f, %2.4f, %3.0f",
-             rotatedPose.getX() / 1000, rotatedPose.getY() / 1000, rotatedPose.getTh());
-  ArLog::log(ArLog::Normal, "Carto project: Aligning with best distance for next scan.");
-  robotAlign(robot, rotatedPose);
-  ArLog::log(ArLog::Normal, "Carto project: Aligning with best distance for next scan END.");
-  */
 }
 
 int main(int argc, char **argv)
@@ -155,6 +137,7 @@ int main(int argc, char **argv)
   // True parameter means that if the connection is lost, then the 
   // run loop ends.
   robot.runAsync(true);
+  robot.enableMotors();
 
   // Print out some data from the SIP.  
 
@@ -181,7 +164,20 @@ int main(int argc, char **argv)
   ArLog::log(ArLog::Normal, "Carto project: connected to %d lasers", robot.getNumLasers());
   const ArRobotParams *params = robot.getRobotParams();
   displayLaserInfo(robot, params);
-  laserScan(robot, params);
+
+  ArActionStallRecover recover;
+  ArActionBumpers bumpers;
+  ArActionAvoidFront avoidFrontNear("Avoid Front Near", 50, 0);
+  ArActionAvoidFront avoidFrontFar;
+  ArActionConstantVelocity constantVelocity("Constant Velocity", 400);
+  robot.addAction(&recover, 100);
+  robot.addAction(&bumpers, 75);
+  robot.addAction(&avoidFrontNear, 50);
+  robot.addAction(&avoidFrontFar, 49);
+  robot.addAction(&constantVelocity, 25);
+
+  while (robot.isConnected())
+    laserScan(robot, params);
 
   robot.lock();
   ArLog::log(ArLog::Normal,
@@ -190,56 +186,6 @@ int main(int argc, char **argv)
              robot.getTh(), robot.getVel(),
              robot.getRotVel(), robot.getBatteryVoltage());
   robot.unlock();
-
-  /*
-  // Sleep for 3 seconds.
-  ArLog::log(ArLog::Normal, "simpleMotionCommands: Will start driving in 3 seconds...");
-  ArUtil::sleep(3000);
-
-  // Set forward velocity to 50 mm/s
-  ArLog::log(ArLog::Normal, "simpleMotionCommands: Driving forward at 250 mm/s for 5 sec...");
-  robot.lock();
-  robot.enableMotors();
-  robot.setVel(250);
-  robot.unlock();
-  ArUtil::sleep(5000);
-  //laserScan(robot, params);
-  */
-
-  ArLog::log(ArLog::Normal, "simpleMotionCommands: Stopping.");
-  robot.lock();
-  robot.stop();
-  robot.unlock();
-  ArUtil::sleep(1000);
-/*
-  ArLog::log(ArLog::Normal, "simpleMotionCommands: Rotating at 10 deg/s for 5 sec...");
-  robot.lock();
-  robot.setRotVel(10);
-  robot.unlock();
-  ArUtil::sleep(5000);
-
-  ArLog::log(ArLog::Normal, "simpleMotionCommands: Rotating at -10 deg/s for 10 sec...");
-  robot.lock();
-  robot.setRotVel(-5);
-  robot.unlock();
-  ArUtil::sleep(10000);
-*/
-  /*
-  ArLog::log(ArLog::Normal, "simpleMotionCommands: Driving forward at 150 mm/s for 5 sec...");
-  robot.lock();
-  robot.setRotVel(0);
-  robot.setVel(150);
-  robot.unlock();
-  ArUtil::sleep(5000);
-
-  ArLog::log(ArLog::Normal, "simpleMotionCommands: Stopping.");
-  robot.lock();
-  robot.stop();
-  robot.unlock();
-  ArUtil::sleep(1000);
-  //displayLaserInfo(robot, params);
-   */
-
 
   // Other motion command functions include move(), setHeading(),
   // setDeltaHeading().  You can also adjust acceleration and deceleration
@@ -254,6 +200,7 @@ int main(int argc, char **argv)
 
 
   ArLog::log(ArLog::Normal, "simpleMotionCommands: Ending robot thread...");
+
   robot.stopRunning();
 
   // wait for the thread to stop
